@@ -1,8 +1,0 @@
-#ignore files created by vscode and juppyternotebook
-.DS_Store
-.vscode/
-__pycache__/
-.ipynb_checkpoints/
-
-#ignore files that are not needed
-test.ipynb
