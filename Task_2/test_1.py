@@ -7,9 +7,10 @@ n_int = 256
 n_sb = 64
 n_tb = 64
 
-lambda_u = 7.5
+lambda_u = 5
+coefficient_neurons = 30
 
-pinn = Pinns(n_int, n_sb, n_tb, lambda_u)
+pinn = Pinns(n_int, n_sb, n_tb, lambda_u_=lambda_u, coefficient_neurons_=coefficient_neurons)
 
 n_epochs = 1
 optimizer_LBFGS = optim.LBFGS(list(pinn.approximate_solution.parameters()) + list(pinn.approximate_coefficient.parameters()),
@@ -25,7 +26,7 @@ hist = pinn.fit(num_epochs=n_epochs,
                 verbose=False)
 
 # Make a folder where to save the results
-path = f'Outputs/Lambda_7'
+path = f'Outputs/Test_5'
 os.makedirs(path)
 
 # Save the parameters
@@ -41,11 +42,14 @@ with open(f'{path}/INFO_RUN.txt', 'w') as f:
     f.write("Netowrk parameters:")
     f.write(f"\n\tlambda_u = {pinn.lambda_u}")
     f.write(f"\n\tcoefficient_neurons = {pinn.coefficient_neurons}")
+    f.write(f"\n\tn_int = {pinn.n_int}")
+    f.write(f"\n\tn_sb = {pinn.n_sb}")
+    f.write(f"\n\tn_tb = {pinn.n_tb}")
 
-    f.write(f"\n\Output Obtained:")
+    f.write(f"\nOutput Obtained:")
     f.write(f"\n\n\ttotal loss: = {pinn.total_loss}")
     f.write(f"\n\tbounday loss = {pinn.boundary_loss}")
     f.write(f"\n\tfunction loss = {pinn.function_loss}")
     f.write(f"\n\tmeasure loss = {pinn.measure_loss}")
     
-    f.write(f"\n\nThis run took: {pinn.run_time/60} minutes {pinn.run_time%60} seconds")
+    f.write(f"\n\nThis run took: {round(pinn.run_time/60)} minutes {round(pinn.run_time%60)} seconds")
