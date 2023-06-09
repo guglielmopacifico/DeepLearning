@@ -649,17 +649,37 @@ class Pinns_Cycle:
         df_meas = pd.read_csv('DataSolution.txt')
 
         # From the data consider only the one in the specific phase the domain is in
-        # Charge Phase
-        if (self.domain_extrema[0, 1] <= 1) or (self.domain_extrema[0, 0] >= 4 and self.domain_extrema[0, 1] <=5 ):
-            df_meas = df_meas[((df_meas['t']<=1) | ((df_meas['t']>=4) & (df_meas['t']<=5)))]
+        # Charge Phase 1
+        if (self.domain_extrema[0, 1] <= 1):
+            df_meas = df_meas[(df_meas['t']<=1)]
         
-        # Discharge Phase
-        elif (self.domain_extrema[0, 0] >= 2 and self.domain_extrema[0, 1] <= 3) or (self.domain_extrema[0, 0] >= 6 and self.domain_extrema[0, 1] <= 7):
-            df_meas = df_meas[(((df_meas['t']>=2) & (df_meas['t']<=3)) | ((df_meas['t']>=6) & (df_meas['t']<=7)))]
+        # Charge Phase 2
+        elif (self.domain_extrema[0, 0] >= 4 and self.domain_extrema[0, 1] <=5 ):
+            df_meas = df_meas[(df_meas['t']>=4) & (df_meas['t']<=5)]
         
-        # Idle Phase
-        elif (self.domain_extrema[0, 0] >= 1 and self.domain_extrema[0, 1] <= 2) or (self.domain_extrema[0, 0] >= 3 and self.domain_extrema[0, 1] <= 4) or (self.domain_extrema[0, 0] >= 5 and self.domain_extrema[0, 1] <= 6) or (self.domain_extrema[0, 0] >= 7 and self.domain_extrema[0, 1] <= 8):
-            df_meas = df_meas[(((df_meas['t']>=1) & (df_meas['t']<=2)) | ((df_meas['t']>=3) & (df_meas['t']<=4)) | ((df_meas['t']>=5) & (df_meas['t']<=6)) | ((df_meas['t']>=7) & (df_meas['t']<=8)))]
+        # Discharge Phase 1
+        elif (self.domain_extrema[0, 0] >= 2 and self.domain_extrema[0, 1] <= 3):
+            df_meas = df_meas[(df_meas['t']>=2) & (df_meas['t']<=3)]
+        
+        # Discharge Phase 2
+        elif (self.domain_extrema[0, 0] >= 6 and self.domain_extrema[0, 1] <= 7):
+            df_meas = df_meas[(df_meas['t']>=6) & (df_meas['t']<=7)]
+        
+        # Idle Phase 1
+        elif (self.domain_extrema[0, 0] >= 1 and self.domain_extrema[0, 1] <= 2):
+            df_meas = df_meas[(df_meas['t']>=1) & (df_meas['t']<=2)]
+        
+        # Idle Phase 2
+        elif (self.domain_extrema[0, 0] >= 3 and self.domain_extrema[0, 1] <= 4):
+            df_meas = df_meas[(df_meas['t']>=3) & (df_meas['t']<=4)]
+
+        # Idle Phase 3
+        elif (self.domain_extrema[0, 0] >= 5 and self.domain_extrema[0, 1] <= 6):
+            df_meas = df_meas[(df_meas['t']>=5) & (df_meas['t']<=6)]
+        
+        # Idle Phase 4
+        elif (self.domain_extrema[0, 0] >= 7 and self.domain_extrema[0, 1] <= 8):
+            df_meas = df_meas[(df_meas['t']>=7) & (df_meas['t']<=8)]
 
         # Convert the DataFrame to a torch.tensor
         tensor_meas = torch.tensor(df_meas.values , dtype=torch.float)
