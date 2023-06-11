@@ -26,7 +26,7 @@ hist = pinn.fit(num_epochs=n_epochs,
                 verbose=False)
 
 # Make a folder where to save the results
-path = f'Outputs/Test_5'
+path = f'Outputs/Test_7'
 os.makedirs(path)
 
 # Save the parameters

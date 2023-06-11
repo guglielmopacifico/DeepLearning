@@ -3,9 +3,9 @@ import os
 
 """=================================================================================================================="""
 # Define the model
-n_int = 256*4
-n_sb = 64*2
-n_tb = 64*2
+n_int = 256*8
+n_sb = 64*8
+n_tb = 64*8
 
 
 lambda_u = 10
@@ -27,7 +27,7 @@ hist = pinn.fit(num_epochs=n_epochs,
                 verbose=False)
 
 # Make a folder where to save the results
-path = f'Outputs/Test_6'
+path = f'Outputs/Test_8'
 os.makedirs(path)
 
 # Save the parameters
