@@ -11,7 +11,7 @@ lambda_u = 5
 coefficient_neurons = 30
 
 folder = f'Outputs/Cycle_L5_N30/'
-phase = ['Charge', 'Idel', 'Discharge', 'Idel', 'Charge', 'Idel', 'Discharge', 'Idel']
+phase = ['Charge_1', 'Idel_1', 'Discharge_1', 'Idel_2', 'Charge_2', 'Idel_3', 'Discharge_2', 'Idel_4']
 
 for t in range(8):
     t_0 = t
