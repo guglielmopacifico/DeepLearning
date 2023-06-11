@@ -482,7 +482,7 @@ class Pinns:
         return history
 
     ################################################################################################
-    def plotting(self, vmax_=None):
+    def plotting(self, vmax_=None, savefig=False):
         inputs = self.soboleng.draw(100000)
         inputs = self.convert(inputs)
 
@@ -504,6 +504,10 @@ class Pinns:
         axs[1].grid(True, which="both", ls=":")
         axs[0].set_title(r"Approximate Solution $T_f$")
         axs[1].set_title(r"Approximate Solution $T_s$")
+
+        fig.suptitle(f"lambda_u = {self.lambda_u} neurons = {self.coefficient_neurons}\nn_int = {self.n_int} n_sb = {self.n_sb} n_tb = {self.n_tb}", size=18)
+
+        if savefig :plt.savefig(f"Plots/lambda_u={self.lambda_u}_neurons={self.coefficient_neurons}_n_int={self.n_int}_n_sb={self.n_sb}_n_tb={self.n_tb}.png")
 
         plt.show()
 
@@ -844,7 +848,7 @@ class Pinns_Cycle:
         return history
 
     ################################################################################################
-    def plotting(self, vmax_=None):
+    def plotting(self, vmax_=None, savefig=False):
         inputs = self.soboleng.draw(100000)
         inputs = self.convert(inputs)
 
@@ -867,4 +871,8 @@ class Pinns_Cycle:
         axs[0].set_title(r"Approximate Solution $T_f$")
         axs[1].set_title(r"Approximate Solution $T_s$")
 
+        fig.suptitle(f"lambda_u = {self.lambda_u} neurons = {self.coefficient_neurons}\nn_int = {self.n_int} n_sb = {self.n_sb} n_tb = {self.n_tb}", size=18)
+        
+        if savefig :plt.savefig(f"Plots/lambda_u={self.lambda_u}_neurons={self.coefficient_neurons}_n_int={self.n_int}_n_sb={self.n_sb}_n_tb={self.n_tb}.png")
+        
         plt.show()
