@@ -3,12 +3,12 @@ import os
 
 """=================================================================================================================="""
 # Define the model
-n_int = 256
-n_sb = 64
-n_tb = 64
+n_int = 256*8
+n_sb = 64*4
+n_tb = 64*4
 
-lambda_u = 5
-coefficient_neurons = 30
+lambda_u = 10
+coefficient_neurons = 20
 
 pinn = Pinns(n_int, n_sb, n_tb, lambda_u_=lambda_u, coefficient_neurons_=coefficient_neurons)
 
