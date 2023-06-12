@@ -1,0 +1,14 @@
+Netowrk parameters:
+	lambda_u = 5
+	coefficient_neurons = 30
+	n_int = 256
+	n_sb = 64
+	n_tb = 64
+Output Obtained:
+
+	total loss: = -0.0258
+	bounday loss = -0.7453
+	function loss = -0.8166
+	measure loss = -1.5082
+
+This run took: 2 minutes 52 seconds
