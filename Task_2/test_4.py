@@ -3,11 +3,14 @@ import os
 
 """=================================================================================================================="""
 # Define the model
-n_int = 256*2
-n_sb = 64*2
-n_tb = 64*2
+n_int = 256*16
+n_sb = 64*16
+n_tb = 64*16
 
-pinn = Pinns(n_int, n_sb, n_tb)
+lambda_u = 5
+coefficient_neurons = 30
+
+pinn = Pinns(n_int, n_sb, n_tb, lambda_u_=lambda_u, coefficient_neurons_=coefficient_neurons)
 
 n_epochs = 1
 optimizer_LBFGS = optim.LBFGS(list(pinn.approximate_solution.parameters()) + list(pinn.approximate_coefficient.parameters()),
@@ -23,7 +26,7 @@ hist = pinn.fit(num_epochs=n_epochs,
                 verbose=False)
 
 # Make a folder where to save the results
-path = f'Outputs/Doubling'
+path = f'Outputs/Test_12'
 os.makedirs(path)
 
 # Save the parameters
@@ -43,10 +46,10 @@ with open(f'{path}/INFO_RUN.txt', 'w') as f:
     f.write(f"\n\tn_sb = {pinn.n_sb}")
     f.write(f"\n\tn_tb = {pinn.n_tb}")
 
-    f.write(f"\nOutput Obtained:")
-    f.write(f"\n\n\ttotal loss:\t= {round(pinn.total_loss, 4)}")
-    f.write(f"\n\tbounday loss\t= {round(pinn.boundary_loss, 4)}")
-    f.write(f"\n\tfunction loss\t= {round(pinn.function_loss, 4)}")
-    f.write(f"\n\tmeasure loss\t= {round(pinn.measure_loss, 4)}")
+    f.write(f"\n\nOutput Obtained:")
+    f.write(f"\n\ttotal loss: = {pinn.total_loss}")
+    f.write(f"\n\tbounday loss = {pinn.boundary_loss}")
+    f.write(f"\n\tfunction loss = {pinn.function_loss}")
+    f.write(f"\n\tmeasure loss = {pinn.measure_loss}")
     
     f.write(f"\n\nThis run took: {round(pinn.run_time/60)} minutes {round(pinn.run_time%60)} seconds")

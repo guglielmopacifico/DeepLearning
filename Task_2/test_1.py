@@ -3,9 +3,9 @@ import os
 
 """=================================================================================================================="""
 # Define the model
-n_int = 256*8
-n_sb = 64*4
-n_tb = 64*4
+n_int = 256*16
+n_sb = 64*16
+n_tb = 64*16
 
 lambda_u = 10
 coefficient_neurons = 20
@@ -26,7 +26,7 @@ hist = pinn.fit(num_epochs=n_epochs,
                 verbose=False)
 
 # Make a folder where to save the results
-path = f'Outputs/Test_7'
+path = f'Outputs/Test_9'
 os.makedirs(path)
 
 # Save the parameters
@@ -46,8 +46,8 @@ with open(f'{path}/INFO_RUN.txt', 'w') as f:
     f.write(f"\n\tn_sb = {pinn.n_sb}")
     f.write(f"\n\tn_tb = {pinn.n_tb}")
 
-    f.write(f"\nOutput Obtained:")
-    f.write(f"\n\n\ttotal loss: = {pinn.total_loss}")
+    f.write(f"\n\nOutput Obtained:")
+    f.write(f"\n\ttotal loss: = {pinn.total_loss}")
     f.write(f"\n\tbounday loss = {pinn.boundary_loss}")
     f.write(f"\n\tfunction loss = {pinn.function_loss}")
     f.write(f"\n\tmeasure loss = {pinn.measure_loss}")
