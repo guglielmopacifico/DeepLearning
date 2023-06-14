@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --clusters=merlin6
-#SBATCH --time=12:00:00
+#SBATCH --time=23:00:00
 #SBATCH --partition=daily
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
