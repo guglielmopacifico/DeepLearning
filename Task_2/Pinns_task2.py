@@ -94,11 +94,6 @@ class Pinns:
         input_tb[:, 0] = torch.full(input_tb[:, 0].shape, t0)   # overwrite the entier column of time with t0
         output_tb = torch.full(input_tb[:, 0].shape, self.T_0).reshape(-1, 1)   # the output has 1 column
 
-        # """QUI"""
-        # print('ADD TEMPORAL BOUDARY POINTS:')
-        # print('input_tb: ', input_tb.shape)
-        # print('output_tb: ', output_tb.shape)
-
         return input_tb, output_tb  # input_tb is the sequence of x_n; output_tb is the sequence u0(x_n)
 
     # Function returning the input-output tensor required to assemble the training set S_sb corresponding to the spatial boundary
