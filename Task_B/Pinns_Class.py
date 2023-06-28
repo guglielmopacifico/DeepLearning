@@ -343,12 +343,69 @@ class Cos_1D(nn.Module):
     
     ################################################################################################
 
+class FBPINN(nn.Module):
+    """
+    This class implements the Finite Basis PINN (FBPINN), to solve the problem that the vanilla PINN is not able to solve.
+    
+    Here we will devide the domain in n subdomains of shape hyperrectangle, and in each subdomain we will defice a different NN.
+    The full solution will be the sum of all these sub-solutions.
+    """
 
+    def __init__(self, domain_extrema):
 
+        # The extrema of the domain
+        self.x_min = domain_extrema[0]
+        self.x_max = domain_extrema[1]
 
+    
+    def make_subdomains(self, n_subdomains, overlap):
+        """
+        This method creates the subdomains of the domain
+        And for each subdomain it creates also the list of the midpoints of the overlap
+        """
 
+        # The number of subdomains
+        self.n_subdomains = n_subdomains
 
+        # The overlap between two consecutive subdomains
+        self.overlap = overlap
+
+        # The width of each subdomain
+        self.width = (self.x_max - self.x_min)/self.n_subdomains
+
+        # Create the subdomains with the overlap & the midpoints of the overlap
+        self.midpoints_overlap = []         # List of a&b midpoints of each overlap
+        self.subdomains = []                # List of subdomains
+
+        for i in range(self.n_subdomains):
+
+            self.midpoints_overlap.append([self.x_min + i*self.width, self.x_min + (i+1)*self.width])
+
+            if i != 0 and i != self.n_subdomains - 1:
+                self.subdomains.append([self.x_min + i*self.width - self.overlap/2, self.x_min + (i+1)*self.width + self.overlap/2])
+            elif i == 0:
+                self.subdomains.append([self.x_min + i*self.width, self.x_min + (i+1)*self.width + self.overlap/2])
+            else:
+                self.subdomains.append([self.x_min + i*self.width - self.overlap/2, self.x_min + (i+1)*self.width])
+    
+    def window_function(self, x, a, b, sigma):
+        """
+        This method computes the window function for the given x, a, b
+        Where:
+            x is the input of the NN
+            a is the left midpoint of the overlap
+            b is the right midpoint of the overlap
+            sigma is a parameter defined s.t. the window function is 0 outside the overlap
+        """
+        # If x is a numpy array, convert it to a torch tensor
+        if type(x) == np.ndarray: 
+            x = torch.tensor(x, dtype=torch.float32, device=DEVICE).reshape(-1, 1)
         
-
-
-
+        # Compute the window function
+        # If a or b are the extrema of the domain, then the window function must not be zero on that side
+        if a == self.x_min:
+            return torch.sigmoid((b - x)/sigma)
+        elif b == self.x_max:
+            return torch.sigmoid((x - a)/sigma)
+        else:
+            return torch.sigmoid((x - a)/sigma) * torch.sigmoid((b - x)/sigma)
