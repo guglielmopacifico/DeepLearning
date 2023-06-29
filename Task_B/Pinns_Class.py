@@ -5,6 +5,8 @@ import torch.optim as optim
 import numpy as np
 import time
 
+from Common import NeuralNet
+
 # Access the gpu (also apple MPS) if available
 device = "mps" if getattr(torch,'has_mps',False) \
     else "cuda" if torch.cuda.is_available() else "cpu"
@@ -114,7 +116,7 @@ class PINN(nn.Module):
     
     ################################################################################################
 
-    def lossFunction(self, x):
+    def loss_function(self, x):
         """ 
         This method computes the loss function for the PINN
         
@@ -151,8 +153,11 @@ class Cos_1D(nn.Module):
         u(x) = 1/w * sin(w * x)
     """
     
-    def __init__(self, w_, n_hidden_layers_, neurons_, activation_function_, seed_=0):
+    def __init__(self, domain_extrema, w_, n_hidden_layers_, neurons_, activation_function_, seed_=0):
         super(Cos_1D, self).__init__()
+
+        # Define the domain extrema
+        self.domain_extrema = domain_extrema
 
         # Define the frequencie
         self.w = w_
@@ -237,7 +242,7 @@ class Cos_1D(nn.Module):
     
     ################################################################################################
 
-    def lossFunction_TFC(self, num_points, verbose=False):
+    def loss_function(self, x, verbose=False):
         """ 
         This method computes the loss function for the PINN
         
@@ -247,22 +252,8 @@ class Cos_1D(nn.Module):
 
             u(x) = tanh(w*x) * NN(x)
         """
-        x = torch.linspace(-2*torch.pi, 2*torch.pi, num_points, dtype=torch.float32, device=DEVICE, requires_grad=True).reshape(-1, 1)   # the input has to be of shape (n, 1)
-
-        # # normalize the input
-        # x = self.normalize_input(x)
-
-        # # compute the NN output
-        # u = self.forward(x)
-
-        # # unnormalize the output
-        # u = self.unnormalize_output(u)
-
-        # # compute the ansatz
-        # u_TFC = torch.tanh(self.w * x) * u
 
         # Ansatz
-        # u_TFC = torch.tanh(self.w * self.normalize_input(x)) *  self.unnormalize_output( self.forward( self.normalize_input(x) ) )
         u_TFC = torch.tanh(self.w * x) *  self.unnormalize_output( self.forward( self.normalize_input(x) ) )
 
         # compute the gradient of the ansatz
@@ -274,7 +265,7 @@ class Cos_1D(nn.Module):
 
         return loss
     
-    def lossFunction(self, x, verbose=False):
+    def loss_function_Vanilla(self, x, verbose=False):
         """ 
         This method computes the loss function for the PINN
         
@@ -296,15 +287,16 @@ class Cos_1D(nn.Module):
 
         return loss_ODE + loss_IC
     
-    def fit(self, x, optimizer, num_epochs=1, verbose=False):
+    def fit(self, num_points, optimizer, num_epochs=1, verbose=False):
         """
         This methods trains the PINN using the given optimizer on the given data x
         """
-        # Normalize the input
-        # x = self.normalize_input(x)
 
         # Start timer for training
         start_time = time.time()
+
+        # Devide the domain in num_points on which to train the NN
+        x = torch.linspace(self.domain_extrema[0], self.domain_extrema[1], num_points, dtype=torch.float32, device=DEVICE, requires_grad=True).reshape(-1, 1)   # the input has to be of shape (n, 1)
 
         # List to save the loss
         history = []
@@ -314,13 +306,11 @@ class Cos_1D(nn.Module):
             # Start timer for epoch
             start_epoch_time = time.time()
 
-            if verbose: print("################################ ", epoch, " ################################")
-
             self.train()
 
             def closure():
                 optimizer.zero_grad()
-                loss = self.lossFunction_TFC(x, verbose=verbose)
+                loss = self.loss_function(x, verbose=verbose)
                 loss.backward()
 
                 history.append(loss.item())
@@ -332,7 +322,7 @@ class Cos_1D(nn.Module):
             # End timer for epoch
             end_epoch_time = time.time()
 
-            if verbose & epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
+            if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
         
         # End timer for training
         end_time = time.time()
@@ -351,18 +341,11 @@ class FBPINN(nn.Module):
     The full solution will be the sum of all these sub-solutions.
     """
 
-    def __init__(self, domain_extrema):
+    def __init__(self, domain_extrema, n_subdomains, overlap, sigma, n_hidden_layers, neurons, activation_function, PINN_class, w):
+        super(FBPINN, self).__init__()
 
         # The extrema of the domain
-        self.x_min = domain_extrema[0]
-        self.x_max = domain_extrema[1]
-
-    
-    def make_subdomains(self, n_subdomains, overlap):
-        """
-        This method creates the subdomains of the domain
-        And for each subdomain it creates also the list of the midpoints of the overlap
-        """
+        self.domain_extrema = domain_extrema
 
         # The number of subdomains
         self.n_subdomains = n_subdomains
@@ -370,8 +353,41 @@ class FBPINN(nn.Module):
         # The overlap between two consecutive subdomains
         self.overlap = overlap
 
+        # The parameter defined s.t. the window function is 0 outside the overlap
+        self.sigma = sigma
+
         # The width of each subdomain
-        self.width = (self.x_max - self.x_min)/self.n_subdomains
+        self.width = (self.domain_extrema[1] - self.domain_extrema[0])/self.n_subdomains
+
+        # The number of hidden layers
+        assert n_hidden_layers > 0, "Number of hidden layers must be greater than 0"
+        self.n_hidden_layers = n_hidden_layers
+
+        # The neurons for each hidden layer
+        self.neurons = neurons
+
+        # The activation function
+        self.activation_function = activation_function
+
+        # The class of the PINN
+        self.PINN_class = PINN_class
+
+        # The frequency of the problem
+        self.w = w
+
+        # Do the domain decomposition
+        self.make_subdomains()
+
+        # Create the sub_NNs for each subdomain
+        self.make_neural_networks()
+    
+    ################################################################################################
+
+    def make_subdomains(self):
+        """
+        This method creates the subdomains of the domain
+        And for each subdomain it creates also the list of the midpoints of the overlap
+        """
 
         # Create the subdomains with the overlap & the midpoints of the overlap
         self.midpoints_overlap = []         # List of a&b midpoints of each overlap
@@ -379,23 +395,22 @@ class FBPINN(nn.Module):
 
         for i in range(self.n_subdomains):
 
-            self.midpoints_overlap.append([self.x_min + i*self.width, self.x_min + (i+1)*self.width])
+            self.midpoints_overlap.append([self.domain_extrema[0] + i*self.width, self.domain_extrema[0] + (i+1)*self.width])
 
             if i != 0 and i != self.n_subdomains - 1:
-                self.subdomains.append([self.x_min + i*self.width - self.overlap/2, self.x_min + (i+1)*self.width + self.overlap/2])
+                self.subdomains.append([self.domain_extrema[0] + i*self.width - self.overlap/2, self.domain_extrema[0] + (i+1)*self.width + self.overlap/2])
             elif i == 0:
-                self.subdomains.append([self.x_min + i*self.width, self.x_min + (i+1)*self.width + self.overlap/2])
+                self.subdomains.append([self.domain_extrema[0] + i*self.width, self.domain_extrema[0] + (i+1)*self.width + self.overlap/2])
             else:
-                self.subdomains.append([self.x_min + i*self.width - self.overlap/2, self.x_min + (i+1)*self.width])
+                self.subdomains.append([self.domain_extrema[0] + i*self.width - self.overlap/2, self.domain_extrema[0] + (i+1)*self.width])
     
-    def window_function(self, x, a, b, sigma):
+    def window_function(self, x, a, b):
         """
         This method computes the window function for the given x, a, b
         Where:
             x is the input of the NN
             a is the left midpoint of the overlap
             b is the right midpoint of the overlap
-            sigma is a parameter defined s.t. the window function is 0 outside the overlap
         """
         # If x is a numpy array, convert it to a torch tensor
         if type(x) == np.ndarray: 
@@ -403,9 +418,175 @@ class FBPINN(nn.Module):
         
         # Compute the window function
         # If a or b are the extrema of the domain, then the window function must not be zero on that side
-        if a == self.x_min:
-            return torch.sigmoid((b - x)/sigma)
-        elif b == self.x_max:
-            return torch.sigmoid((x - a)/sigma)
+        if a == self.domain_extrema[0]:
+            return torch.sigmoid((b - x)/self.sigma)
+        elif b == self.domain_extrema[1]:
+            return torch.sigmoid((x - a)/self.sigma)
         else:
-            return torch.sigmoid((x - a)/sigma) * torch.sigmoid((b - x)/sigma)
+            return torch.sigmoid((x - a)/self.sigma) * torch.sigmoid((b - x)/self.sigma)
+
+    def make_neural_networks(self):
+        """
+        This method creates the neural network for each subdomain
+        """
+
+        # List of the NNs
+        self.neural_networks = []
+
+        for i in range(self.n_subdomains):
+            self.neural_networks.append( NeuralNet(input_dimension = int(1), output_dimension = int(1),
+                                                    n_hidden_layers = self.n_hidden_layers,
+                                                    neurons = self.neurons,
+                                                    regularization_param = 0.,
+                                                    regularization_exp = 2.,
+                                                    retrain_seed = 0
+                                                    )
+                                        )
+            # self.neural_networks.append(self.PINN_class(domain_extrema= self.subdomains[i], w_=self.w, n_hidden_layers_=self.n_hidden_layers, neurons_=self.neurons, activation_function_=self.activation_function))
+    
+    ################################################################################################
+
+    def normalize_input(self, x):
+        """
+        This method normalizes the input x in the range [-1, 1]
+        """
+        return 2*(x - torch.min(x))/(torch.max(x) - torch.min(x)) - 1
+    
+    def unnormalize_output(self, u):
+        """
+        This method unnormalizes the output of the NN as explained in the paper
+        multipling the output of the sub_NN, namely u(x), by 1/w
+
+            unnormalize( u(x) ) = u(x) * 1/w
+        """
+        return u/self.w
+
+    ################################################################################################
+
+    def forward(self, x):
+        """
+        This method computes the output of the FBPINN for the given x.
+        The output is computed following equation (13) in the paper:
+
+            NN(x, theta) = sum_{i=1}^{n_subdomains} window_function(x, a_i, b_i) * unnormalization * NN_i * normalization_i(x)
+
+        Where: * stands for the function composition
+
+        So here the given x is the unnormalized input and this method does the normalization for each subdomain
+        """
+
+        # If x is a numpy array, convert it to a torch tensor
+        if type(x) == np.ndarray: 
+            x = torch.tensor(x, dtype=torch.float32, device=DEVICE).reshape(-1, 1)
+
+        output = torch.zeros_like(x)
+
+        for i in range(self.n_subdomains):
+            window_function = self.window_function(x, self.midpoints_overlap[i][0], self.midpoints_overlap[i][1])
+            output += window_function * self.unnormalize_output(self.neural_networks[i](self.normalize_input(x)))
+
+        return output
+
+    ################################################################################################
+
+    def loss_function(self, x, verbose=False):
+        # Ansatz
+        u = torch.tanh(self.w * x) * self(x)
+
+        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(x), create_graph=True)[0]
+
+        loss = (u_x - torch.cos(self.w * x)).square().mean()
+
+        if verbose: print("Loss: ", loss.item())
+
+        return loss
+    
+    ################################################################################################
+
+    def fit(self, num_points, num_epochs=1, verbose=False):
+        """
+        This method trains the FBPINN using the given optimizer on the given data x
+        To train the FBPINN, we train each NN separately in its subdomain
+        """
+        
+        # Start timer for training
+        start_time = time.time()
+
+        # Devide the domain in num_points on which to train the NN
+        x = torch.linspace(self.domain_extrema[0], self.domain_extrema[1], num_points, dtype=torch.float32, device=DEVICE, requires_grad=True).reshape(-1, 1)   # the input has to be of shape (n, 1)
+
+        # Define the optimizer
+        # Make a list with the parameters of each sub_NN
+        parameters = []
+        for i in range(self.n_subdomains):
+            parameters += self.neural_networks[i].parameters()
+
+        optimizer = optim.Adam(parameters, lr=float(0.001))
+
+        # List to save the loss
+        history = []
+        print_every = 100
+
+        for epoch in range(num_epochs):
+            # Start timer for epoch
+            start_epoch_time = time.time()
+
+            self.train()
+
+            def closure():
+                optimizer.zero_grad()
+                loss = self.loss_function(x, verbose=verbose)
+                loss.backward()
+
+                history.append(loss.item())
+
+                return loss
+            
+            optimizer.step(closure)
+
+            # End timer for epoch
+            end_epoch_time = time.time()
+
+            if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
+        
+        # End timer for training
+        end_time = time.time()
+
+        print("Final loss: ", history[-1], "\t Training_time: ", round(end_time - start_time)//60, ' min ', round(end_time - start_time)%60, ' s')
+
+        return history
+    
+    ################################################################################################
+    
+    # def fit(self, num_points, num_epochs=1, verbose=False):
+    #     """
+    #     This method trains the FBPINN using the given optimizer on the given data x
+    #     To train the FBPINN, we train each NN separately in its subdomain
+    #     """
+    #     # Devide the domain in num_points on which to train the FBPINN
+    #     x = torch.linspace(self.domain_extrema[0], self.domain_extrema[1], num_points, dtype=torch.float32,     # the input has to be of shape (n, 1)
+    #                        device=DEVICE, requires_grad=False).reshape(-1, 1)                                   # do not compute the gradient of the full x
+
+    #     self.hisory_sub_NN = []    # List of the history of the sub_NN
+
+    #     for i in range(self.n_subdomains):
+
+    #         # Take only the points in the subdomain
+    #         mask = (x >= self.subdomains[i][0]) & (x <= self.subdomains[i][1])
+    #         x_subdomain = x[mask]
+    #         x_subdomain.requires_grad = True        # compute the gradient of the subdomain
+
+    #         history = []
+    #         print_every = 100
+
+    #         for epoch in range(num_epochs):
+    #             # Start timer for epoch
+    #             start_epoch_time = time.time()
+                
+
+
+    #         # Create the optimizer for the sub_NN
+    #         optimizer_ADAM = optim.Adam(self.neural_networks[i].parameters(), lr=float(0.001))
+
+    #         # Train the sub_NN and save the history
+    #         self.hisory_sub_NN.append(self.neural_networks[i].fit(num_points, optimizer_ADAM, num_epochs, verbose))
