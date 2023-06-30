@@ -266,7 +266,7 @@ class Cos_1D_HardBC(nn.Module):
         u = self.unnormalize_output(u)
 
         # compute the gradient
-        u_x = torch.autograd.grad(u, x_normalized, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0] # Here lied the error
 
         # compute the ansatz
         u_HardBC = torch.tanh(self.w * x) * u_x
