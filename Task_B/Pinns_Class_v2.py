@@ -500,14 +500,42 @@ class FBPINN(nn.Module):
         return output
 
     ################################################################################################
+    def compute_sub_NN_outputs(self, x, i):
+        """
+        This method computes the output of the sub_NN and its gradient for the given x and subdomain i
+        """
+        # normalize the input
+        x_normalized = self.normalize_input(x)
+        x_normalized.requires_grad = True
+
+        # compute the output of the sub_NN
+        u = self.neural_networks[i](x_normalized)
+
+        # unnormalize the output
+        u = self.unnormalize_output(u)
+
+        # apply the window function
+        u = self.window_function(x, self.midpoints_overlap[i][0], self.midpoints_overlap[i][1]) * u
+
+        # compute the gradient
+        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(x_normalized), create_graph=True)[0]
+
+        return u, u_x
 
     def loss_function(self, x, verbose=False):
-        # Ansatz
-        u = torch.tanh(self.w * x) * self(x)
+        
+        # compute the output of the sub_NN and its gradient for each subdomain
+        u, u_x = torch.zeros_like(x), torch.zeros_like(x)
+        for i in range(self.n_subdomains):
+            u_i, u_x_i = self.compute_sub_NN_outputs(x, i)
+            u += u_i
+            u_x += u_x_i
+        
+        # Apply the boundary conditions wrting the ansatz
+        u_TFC = torch.tanh(self.w * x) * u_x
 
-        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(x), create_graph=True)[0]
-
-        loss = (u_x - torch.cos(self.w * x)).square().mean()
+        # Compute the loss
+        loss = (u_TFC - torch.cos(self.w * x)).square().mean()
 
         if verbose: print("Loss: ", loss.item())
 
@@ -538,8 +566,11 @@ class FBPINN(nn.Module):
         # Start timer for training
         start_time = time.time()
 
-        # Devide the domain in num_points on which to train the NN
-        x = torch.linspace(self.domain_extrema[0], self.domain_extrema[1], num_points, dtype=torch.float32, device=DEVICE, requires_grad=True).reshape(-1, 1)   # the input has to be of shape (n, 1)
+        x = torch.linspace(self.domain_extrema[i][0], self.domain_extrema[i][1], num_points, dtype=torch.float32, device=DEVICE, requires_grad=False).reshape(-1, 1)   # the input has to be of shape (n, 1)
+
+        # List to save the loss
+        history = []
+        print_every = 100
 
         # Define the optimizer
         # Make a list with the parameters of each sub_NN
@@ -549,32 +580,26 @@ class FBPINN(nn.Module):
 
         optimizer = optim.Adam(parameters, lr=float(0.001))
 
-        # List to save the loss
-        history = []
-        print_every = 100
-
         for epoch in range(num_epochs):
             # Start timer for epoch
             start_epoch_time = time.time()
-
-            self.train()
 
             def closure():
                 optimizer.zero_grad()
                 loss = self.loss_function(x, verbose=verbose)
                 loss.backward()
-
+                
                 history.append(loss.item())
-
+                
                 return loss
-            
+
             optimizer.step(closure)
 
             # End timer for epoch
             end_epoch_time = time.time()
 
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
-        
+
         # End timer for training
         end_time = time.time()
 
