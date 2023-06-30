@@ -19,7 +19,7 @@ print("Running on ", device)
 
 # Set seed for reproducibility
 np.random.seed(0)
-torch.manual_seed(0)
+torch.manual_seed(123)
 
 # Define the class for the PINN
 
@@ -223,6 +223,12 @@ class Cos_1D(nn.Module):
         """
         return 2*(x - torch.min(x))/(torch.max(x) - torch.min(x)) - 1
     
+    def normalize_output(self, u):
+        """
+        This method normalizes the input x from [-1, 1] to the range [-2pi, 2pi]
+        """
+        return self.domain_extrema[0] + ( self.domain_extrema[1] - self.domain_extrema[0] ) * (u + 1)/2
+    
     def unnormalize_output(self, u):
         """
         This method unnormalizes the output of the NN as explained in the paper:
@@ -252,12 +258,13 @@ class Cos_1D(nn.Module):
 
             u(x) = tanh(w*x) * NN(x)
         """
-
+        x_normalized = self.normalize_input(x)
+        x_normalized.requires_grad = True
         # Ansatz
-        u_TFC = torch.tanh(self.w * x) *  self.unnormalize_output( self.forward( self.normalize_input(x) ) )
+        u_TFC = torch.tanh(self.w * x_normalized) *  self.unnormalize_output( self.forward( x_normalized ) )
 
         # compute the gradient of the ansatz
-        u_TFC_x = torch.autograd.grad(u_TFC, x, grad_outputs=torch.ones_like(u_TFC), create_graph=True)[0]
+        u_TFC_x = torch.autograd.grad(u_TFC, x_normalized, grad_outputs=torch.ones_like(u_TFC), create_graph=True)[0]
 
         loss =  (u_TFC_x - torch.cos(self.w * x)).square().mean()
 
@@ -296,7 +303,7 @@ class Cos_1D(nn.Module):
         start_time = time.time()
 
         # Devide the domain in num_points on which to train the NN
-        x = torch.linspace(self.domain_extrema[0], self.domain_extrema[1], num_points, dtype=torch.float32, device=DEVICE, requires_grad=True).reshape(-1, 1)   # the input has to be of shape (n, 1)
+        x = torch.linspace(self.domain_extrema[0], self.domain_extrema[1], num_points, dtype=torch.float32, device=DEVICE, requires_grad=False).reshape(-1, 1)   # the input has to be of shape (n, 1)
 
         # List to save the loss
         history = []
@@ -434,7 +441,7 @@ class FBPINN(nn.Module):
         self.neural_networks = []
 
         for i in range(self.n_subdomains):
-            self.neural_networks.append( NeuralNet(input_dimension = int(1), output_dimension = int(1),
+            self.neural_networks.append( NeuralNet(input_dimension = 1, output_dimension = 1,
                                                     n_hidden_layers = self.n_hidden_layers,
                                                     neurons = self.neurons,
                                                     regularization_param = 0.,
@@ -501,6 +508,20 @@ class FBPINN(nn.Module):
 
         return loss
     
+    def loss_function_Vanilla(self, x, verbose=False):
+        u = self(x)
+
+        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(x), create_graph=True)[0]
+
+        loss_ODE = (u_x - torch.cos(self.w * x)).square().mean()
+
+        x_0 = torch.tensor([0], dtype=torch.float32, device=DEVICE, requires_grad=True)
+        loss_IC = (self(x_0) - 0).square().mean()
+
+        if verbose: print("Loss ODE: ", loss_ODE.item(), "Loss IC: ", loss_IC.item())
+
+        return loss_ODE + loss_IC
+    
     ################################################################################################
 
     def fit(self, num_points, num_epochs=1, verbose=False):
@@ -557,7 +578,7 @@ class FBPINN(nn.Module):
         return history
     
     ################################################################################################
-    
+
     # def fit(self, num_points, num_epochs=1, verbose=False):
     #     """
     #     This method trains the FBPINN using the given optimizer on the given data x
