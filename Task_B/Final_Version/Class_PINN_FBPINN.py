@@ -164,11 +164,11 @@ class FBPINN_Cos_nD(nn.Module):
     def unnormalize_output(self, u):
         """
         This method unnormalizes the output of the NN as explained in the paper
-        multipling the output of the sub_NN, namely u(x), by 2
+        multipling the output of the sub_NN, namely u(x), by n_multi_scale
 
-                unnormalize( u(x) ) = u(x) * 2
+                unnormalize( u(x) ) = u(x) * n_multi_scale
         """
-        return u*2
+        return u*self.n_multi_scale
     
     ################################################################################################
     
@@ -225,16 +225,22 @@ class FBPINN_Cos_nD(nn.Module):
 
         The ansatz is built as follows:
 
-                u(x) = tanh(w_1*x) * NN(x)
+                u(x) = tanh(w_n_multi_scale*x) * NN(x)
         """
 
         # Compute the ansatz
-        u = torch.tanh(self.w_list[1] * x) * self(x)
+        u = torch.tanh(self.w_list[-1] * x) * self(x)
 
         # Compute the gradient of the ansatz
         grad_u = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
 
-        loss = (grad_u - self.w_list[0]*torch.cos(self.w_list[0] * x) - self.w_list[1]*torch.cos(self.w_list[1] * x)).square().mean()
+        # Compute the RHS of the PDE
+        equation = 0
+        for i in range(self.n_multi_scale):
+            equation += self.w_list[i] * torch.cos(self.w_list[i] * x)
+
+        # Compute the loss as the mean squared error of the PDE residual
+        loss = (grad_u - equation).square().mean()
 
         return loss
     
@@ -263,6 +269,10 @@ class FBPINN_Cos_nD(nn.Module):
 
         # List to save the loss
         history = []
+
+        # List to save the L1 loss
+        test_L1_loss = []
+    
         print_every = 100
 
         for epoch in range(num_epochs):
@@ -286,6 +296,14 @@ class FBPINN_Cos_nD(nn.Module):
             # End timer for epoch
             end_epoch_time = time.time()
 
+            # Compute the L1 loss
+            self.eval()
+
+            u_pred = torch.tanh(self.w_list[-1]*x) * self(x)
+            u_exact = self.exact_solution(x)
+            l1_loss = L1_loss(u_pred, u_exact)              # Compute the L1 loss using the function defined in Common.py
+            test_L1_loss.append( l1_loss.detach().numpy() )
+
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
         
         # End timer for training
@@ -293,7 +311,7 @@ class FBPINN_Cos_nD(nn.Module):
 
         print("Final loss: ", history[-1], "\t Training_time: ", round(end_time - start_time)//60, ' min ', round(end_time - start_time)%60, ' s')
 
-        return history
+        return history, test_L1_loss
 
 ################################################################################################
 ################################################################################################
@@ -527,6 +545,10 @@ class FBPPINN_Cos_1D(nn.Module):
 
         # List to save the loss
         history = []
+
+        # List to save the L1 loss
+        test_L1_loss = []
+    
         print_every = 100
 
         for epoch in range(num_epochs):
@@ -550,6 +572,14 @@ class FBPPINN_Cos_1D(nn.Module):
             # End timer for epoch
             end_epoch_time = time.time()
 
+            # Compute the L1 loss
+            self.eval()
+
+            u_pred = torch.tanh(self.w*x) * self(x)
+            u_exact = self.exact_solution(x)
+            l1_loss = L1_loss(u_pred, u_exact)              # Compute the L1 loss using the function defined in Common.py
+            test_L1_loss.append( l1_loss.detach().numpy() )
+
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
         
         # End timer for training
@@ -557,7 +587,7 @@ class FBPPINN_Cos_1D(nn.Module):
 
         print("Final loss: ", history[-1], "\t Training_time: ", round(end_time - start_time)//60, ' min ', round(end_time - start_time)%60, ' s')
 
-        return history
+        return history, test_L1_loss
 
 ################################################################################################
 ################################################################################################
@@ -727,6 +757,10 @@ class PINN_Cos_1D(nn.Module):
 
         # List to save the loss
         history = []
+
+        # List to save the L1 loss
+        test_L1_loss = []
+    
         print_every = 100
 
         for epoch in range(num_epochs):
@@ -749,6 +783,14 @@ class PINN_Cos_1D(nn.Module):
             # End timer for epoch
             end_epoch_time = time.time()
 
+            # Compute the L1 loss
+            self.eval()
+
+            u_pred = self.restore_output( torch.tanh(self.w * self.normalize_input(x)) * self.unnormalize_output( self( self.normalize_input(x)) ) )
+            u_exact = self.exact_solution(x)
+            l1_loss = L1_loss(u_pred, u_exact)              # Compute the L1 loss using the function defined in Common.py
+            test_L1_loss.append( l1_loss.detach().numpy() )
+
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
         
         # End timer for training
@@ -756,7 +798,7 @@ class PINN_Cos_1D(nn.Module):
 
         print("Final loss: ", history[-1], "\t Training_time: ", round(end_time - start_time)//60, ' min ', round(end_time - start_time)%60, ' s')
 
-        return history
+        return history, test_L1_loss
 
 ################################################################################################
 ################################################################################################
@@ -857,9 +899,9 @@ class PINN_Cos_nD(nn.Module):
         This method unnormalizes the output of the NN as explained in the paper:
         multipling the output of the sub_NN, namely u(x), by 2
 
-                unnormalize( u(x) ) = u(x) * 2
+                unnormalize( u(x) ) = u(x) * n_multi_scale
         """
-        return u*2
+        return u*self.n_multi_scale
     
     ################################################################################################
     
@@ -907,12 +949,18 @@ class PINN_Cos_nD(nn.Module):
         x_norm.requires_grad = True
 
         # Compute the ansatz
-        u = torch.tanh(self.w_list[1] * x_norm) *  self.unnormalize_output( self.forward( x_norm ) )
+        u = torch.tanh(self.w_list[-1] * x_norm) *  self.unnormalize_output( self.forward( x_norm ) )
 
         # compute the gradient of the ansatz
         grad_u = torch.autograd.grad(u, x_norm, grad_outputs=torch.ones_like(u), create_graph=True)[0]
 
-        loss =  (grad_u - self.w_list[0]*torch.cos(self.w_list[0] * x) - self.w_list[1]*torch.cos(self.w_list[1] * x)).square().mean()
+        # Compute the RHS of the PDE
+        equation = 0
+        for i in range(self.n_multi_scale):
+            equation += self.w_list[i] * torch.cos(self.w_list[i] * x)
+
+        # Compute the loss as the mean squared error of the PDE residual
+        loss = (grad_u - equation).square().mean()
 
         return loss
     
@@ -931,6 +979,10 @@ class PINN_Cos_nD(nn.Module):
 
         # List to save the loss
         history = []
+
+        # List to save the L1 loss
+        test_L1_loss = []
+    
         print_every = 100
 
         for epoch in range(num_epochs):
@@ -953,6 +1005,14 @@ class PINN_Cos_nD(nn.Module):
             # End timer for epoch
             end_epoch_time = time.time()
 
+            # Compute the L1 loss
+            self.eval()
+
+            u_pred = self.restore_output( torch.tanh(self.w_list[-1] * self.normalize_input(x)) * self.unnormalize_output( self( self.normalize_input(x)) ) )
+            u_exact = self.exact_solution(x)
+            l1_loss = L1_loss(u_pred, u_exact)              # Compute the L1 loss using the function defined in Common.py
+            test_L1_loss.append( l1_loss.detach().numpy() )
+
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
         
         # End timer for training
@@ -960,7 +1020,7 @@ class PINN_Cos_nD(nn.Module):
 
         print("Final loss: ", history[-1], "\t Training_time: ", round(end_time - start_time)//60, ' min ', round(end_time - start_time)%60, ' s')
 
-        return history
+        return history, test_L1_loss
 
 ################################################################################################
 ################################################################################################
