@@ -276,6 +276,9 @@ class FBPINN_Cos_nD(nn.Module):
     
         print_every = 100
 
+        early_stopper = EarlyStopper(patience=5, min_delta=2)
+    
+
         for epoch in range(num_epochs):
             # Start timer for epoch
             start_epoch_time = time.time()
@@ -305,6 +308,9 @@ class FBPINN_Cos_nD(nn.Module):
             test_L1_loss.append( l1_loss.detach().cpu().numpy() )
 
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
+
+            if early_stopper.early_stop(history[-1]):             
+                break
         
         # End timer for training
         end_time = time.time()
