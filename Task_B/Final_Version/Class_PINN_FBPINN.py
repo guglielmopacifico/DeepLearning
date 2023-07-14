@@ -250,7 +250,7 @@ class FBPINN_Cos_nD(nn.Module):
     
     ################################################################################################
 
-    def fit(self, num_points, num_epochs=1, verbose=False):
+    def fit(self, num_points, num_epochs=1, patience=5,  min_delta=2 ,verbose=False):
         """
         This method trains the FBPINN using Adam as the optimizer.
 
@@ -281,7 +281,7 @@ class FBPINN_Cos_nD(nn.Module):
         print_every = 100
 
         # Define the early stopper
-        early_stopper = EarlyStopper(patience=5, min_delta=2)
+        early_stopper = EarlyStopper(patience=patience, min_delta=min_delta)
     
 
         for epoch in range(num_epochs):
@@ -309,14 +309,14 @@ class FBPINN_Cos_nD(nn.Module):
             l1_loss = L1_loss(u_pred, u_exact)              # Compute the L1 loss using the function defined in Common.py
             test_L1_loss.append( l1_loss.detach().cpu().numpy() )
 
+            # End timer for epoch
+            end_epoch_time = time.time()
+
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
 
             # Check if early stopping is needed
             if early_stopper.early_stop(history[-1]):             
                 break
-
-            # End timer for epoch
-            end_epoch_time = time.time()
         
         # End timer for training
         end_time = time.time()
