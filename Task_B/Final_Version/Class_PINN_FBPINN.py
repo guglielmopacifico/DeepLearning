@@ -73,7 +73,7 @@ class FBPINN_Cos_nD(nn.Module):
 
         # The activation function
         self.activation_function = activation_function
-
+        
         # The frequencies of the problem
         assert n_multi_scale == len(w_list), "Number of frequecies w do not match the number of multi-scale"
         self.n_multi_scale = n_multi_scale
@@ -276,7 +276,6 @@ class FBPINN_Cos_nD(nn.Module):
         print_every = 100
 
         for epoch in range(num_epochs):
-
             # Start timer for epoch
             start_epoch_time = time.time()
 
@@ -593,6 +592,7 @@ class FBPPINN_Cos_1D(nn.Module):
 ################################################################################################
 
 class PINN_Cos_1D(nn.Module):
+
     """
     This class implements the Physics Informed Neural Network (PINN).
 
