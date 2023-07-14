@@ -142,14 +142,15 @@ class FBPINN_Cos_nD(nn.Module):
         self.neural_networks = []
 
         for i in range(self.n_subdomains):
-            self.neural_networks.append( NeuralNet(input_dimension = 1, output_dimension = 1,
+            NN_i = NeuralNet(input_dimension = 1, output_dimension = 1,
                                                     n_hidden_layers = self.n_hidden_layers,
                                                     neurons = self.neurons,
                                                     regularization_param = 0.,
                                                     regularization_exp = 2.,
                                                     retrain_seed = 0
                                                     )
-                                        )
+            NN_i.to(DEVICE)
+            self.neural_networks.append(NN_i)
     
     ################################################################################################
 
@@ -301,7 +302,7 @@ class FBPINN_Cos_nD(nn.Module):
             u_pred = torch.tanh(self.w_list[-1]*x) * self(x)
             u_exact = self.exact_solution(x)
             l1_loss = L1_loss(u_pred, u_exact)              # Compute the L1 loss using the function defined in Common.py
-            test_L1_loss.append( l1_loss.detach().numpy() )
+            test_L1_loss.append( l1_loss.detach().cpu().numpy() )
 
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
         
