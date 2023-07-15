@@ -44,6 +44,8 @@ class FBPINN_Cos_nD(nn.Module):
     The idea behind the FBPINN is to decompose the domain in n subdomains and to define a different NN for each subdomain.
 
     This class uses the NN defined in Common.py ->  each subdomain has its own NN which is defined in Common.py as NeuralNet
+
+    This class also has the automatic stopping criterion implemented.
     """
 
     def __init__(self, domain_extrema, n_subdomains, overlap, sigma, n_hidden_layers, neurons, activation_function, n_multi_scale, w_list):
@@ -136,6 +138,7 @@ class FBPINN_Cos_nD(nn.Module):
     def make_neural_networks(self):
         """
         This method creates the neural network for each subdomain
+        and moves them to the DEVICE
         """
 
         # List of the NNs
@@ -149,7 +152,7 @@ class FBPINN_Cos_nD(nn.Module):
                                                     regularization_exp = 2.,
                                                     retrain_seed = 0
                                                     )
-            NN_i.to(DEVICE)
+            NN_i.to(DEVICE)                     # Move the NN to the DEVICE
             self.neural_networks.append(NN_i)
     
     ################################################################################################
@@ -247,7 +250,7 @@ class FBPINN_Cos_nD(nn.Module):
     
     ################################################################################################
 
-    def fit(self, num_points, num_epochs=1, verbose=False):
+    def fit(self, num_points, num_epochs=1, patience=5,  min_delta=2 ,verbose=False):
         """
         This method trains the FBPINN using Adam as the optimizer.
 
@@ -274,9 +277,11 @@ class FBPINN_Cos_nD(nn.Module):
         # List to save the L1 loss
         test_L1_loss = []
     
+        # Define the print_every parameter
         print_every = 100
 
-        early_stopper = EarlyStopper(patience=5, min_delta=2)
+        # Define the early stopper
+        early_stopper = EarlyStopper(patience=patience, min_delta=min_delta)
     
 
         for epoch in range(num_epochs):
@@ -296,9 +301,6 @@ class FBPINN_Cos_nD(nn.Module):
             
             optimizer.step(closure)
 
-            # End timer for epoch
-            end_epoch_time = time.time()
-
             # Compute the L1 loss
             self.eval()
 
@@ -307,8 +309,12 @@ class FBPINN_Cos_nD(nn.Module):
             l1_loss = L1_loss(u_pred, u_exact)              # Compute the L1 loss using the function defined in Common.py
             test_L1_loss.append( l1_loss.detach().cpu().numpy() )
 
+            # End timer for epoch
+            end_epoch_time = time.time()
+
             if verbose and epoch % print_every == 0: print("Epoch : ", epoch, "\t Loss: ", history[-1], "\t Epoch_time: ", round(end_epoch_time - start_epoch_time), ' s')
 
+            # Check if early stopping is needed
             if early_stopper.early_stop(history[-1]):             
                 break
         

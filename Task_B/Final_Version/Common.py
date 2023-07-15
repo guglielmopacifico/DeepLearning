@@ -35,7 +35,6 @@ class NeuralNet(nn.Module):
 
     def forward(self, x):
         # The forward function performs the set of affine and non-linear transformations defining the network
-        # (see equation above)
         x = self.activation(self.input_layer(x))
         for k, l in enumerate(self.hidden_layers):
             x = self.activation(l(x))
@@ -63,6 +62,9 @@ class NeuralNet(nn.Module):
 ################################################################################################
 
 class EarlyStopper:
+    """
+    This class implements the early stopping strategy
+    """
     def __init__(self, patience=1, min_delta=0):
         self.patience = patience
         self.min_delta = min_delta
@@ -78,6 +80,8 @@ class EarlyStopper:
             if self.counter >= self.patience:
                 return True
         return False
+
+################################################################################################
 
 def L2_loss(y, y_hat):
     """
